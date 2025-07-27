@@ -1,0 +1,271 @@
+<!-- JS-Editor_V2_plus.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JS Editor V2 Plus</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+  <!-- Acknowledgment Preface for Project by redateck79
+
+  With sincere thanks to:
+  - ChatGPT (OpenAI), for quickly grasping the core idea and proposing multi-solution paths with clarity and care.
+  - W3Schools, for their free and structured teaching approach, and the TryIt editor inspiration.
+  - Dynamic Drive / JavaScript Kit Editor, for early in-browser code editing concepts.
+
+  Editor version: JS-Editor-Lite by Redateck79, 2025
+
+  — A special thanks to ChatGPT (OpenAI): I call it my Master, Helper, and my Friend — for how fast it grasps the idea and proposes multiple solutions. 
+     If minor tweaks appear, it incites me to fix them myself, empowering my skills; otherwise, it helps instantly to remedy them.
+-->
+
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    #jknavbar {
+      background: #444;
+      color: white;
+      padding: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    #jknavbar button {
+      background: #666;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-size: 1.3em;
+    }
+    #jkresizer {
+      display: flex;
+      flex: 1;
+    }
+    #resizeHeader {
+      background: #ddd;
+      color: #222;
+      cursor: col-resize;
+      font-size: 1.2em;
+      text-align: center;
+      user-select: none;
+      padding: 2px;
+    }
+    #jkcodeinput, #jkcodeoutput {
+      height: 100%;
+      width: 50%;
+    }
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+    @media screen and (max-width: 700px) {
+      #jkcodeinput, #jkcodeoutput {
+        width: 100%;
+        height: 45%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="jknavbar">
+    <button onclick="showLineNumbers()" title="Toggle Line Numbers">123</button>
+    <button onclick="editor.undo()" title="Undo">⟲</button>
+    <button onclick="editor.redo()" title="Redo">⟳</button>
+    <button onclick="copyCode()" title="Copy to Clipboard">⿻</button>
+    <button onclick="toggleTheme()" title="Toggle Theme">🌓</button>
+    <button onclick="toggleOrientation(this)" title="Toggle Orientation">🔃</button>
+    <button onclick="saveToLocal()" title="Save to Local Storage">💾</button>
+    <button onclick="loadFromLocal()" title="Load Last Saved Code">📂</button>
+    <button onclick="exportToFile()" title="Download HTML File">⬇️</button>
+    <button onclick="exportStateToFile()" title="Export Editor State">🧐</button>
+    <button onclick="exportStateToZip()" title="Export State as ZIP">🧐📦</button>
+    <input type="file" id="stateFileInput" style="display:none" onchange="importStateFromFile(this.files[0])" />
+    <button onclick="document.getElementById('stateFileInput').click()" title="Import Editor State">🧐📂</button>
+    <button onclick="runCode()" title="Run Code">Run &#10095;</button>
+    <button style='margin-left:75%; margin-top:-45px;'> ⮟ Output ⮟ </button>
+  </div>
+
+  <div id="jkresizer">
+    <div id="jkcodeinput"></div>
+    <div id="resizeHeader">⇔</div>
+    <div id="jkcodeoutput"><iframe id="outputframe"></iframe></div>
+  </div>
+
+  <script>
+    let isDark = false;
+    let lineNumbersVisible = true;
+    let isVertical = false;
+
+    const editor = ace.edit("jkcodeinput");
+    editor.setTheme("ace/theme/chrome");
+    editor.session.setMode("ace/mode/html");
+    editor.setValue(`<!DOCTYPE html>\n<html>\n<head><title>Test</title></head>\n<body>\n<h1>Hello World</h1>\n</body>\n</html>`, -1);
+
+    function runCode() {
+      const code = editor.getValue();
+      const iframe = document.getElementById("outputframe");
+      const doc = iframe.contentDocument || iframe.contentWindow.document;
+      doc.open();
+      doc.write(code);
+      doc.close();
+    }
+
+    function toggleTheme() {
+      isDark = !isDark;
+      editor.setTheme(isDark ? "ace/theme/monokai" : "ace/theme/chrome");
+      editor.container.style.background = isDark ? "#272822" : "#ffffff";
+      editor.resize();
+    }
+
+    function copyCode() {
+      navigator.clipboard.writeText(editor.getValue()).then(() => alert("Code copied!"));
+    }
+
+    function showLineNumbers() {
+      lineNumbersVisible = !lineNumbersVisible;
+      editor.renderer.setShowGutter(lineNumbersVisible);
+    }
+
+    function saveToLocal() {
+      localStorage.setItem("jk_saved_code", editor.getValue());
+      alert("Code saved locally!");
+    }
+
+    function loadFromLocal() {
+      const saved = localStorage.getItem("jk_saved_code");
+      if (saved) {
+        editor.setValue(saved, -1);
+        runCode();
+        alert("Code restored from local storage.");
+      } else {
+        alert("No saved code found.");
+      }
+    }
+
+    function exportToFile() {
+      const code = editor.getValue();
+      const blob = new Blob([code], { type: "text/html" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "my_code.html";
+      a.click();
+    }
+
+    function exportStateToFile() {
+      const state = {
+        code: editor.getValue(),
+        theme: isDark ? "dark" : "light",
+        lineNumbers: lineNumbersVisible
+      };
+      const filename = prompt("Filename?", "editor_state.json");
+      if (!filename) return;
+      const compressed = btoa(unescape(encodeURIComponent(JSON.stringify(state))));
+      const blob = new Blob([compressed], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename.endsWith(".json") ? filename : filename + ".json";
+      a.click();
+    }
+
+    function exportStateToZip() {
+      const zip = new JSZip();
+      const state = {
+        code: editor.getValue(),
+        theme: isDark ? "dark" : "light",
+        lineNumbers: lineNumbersVisible
+      };
+      const compressed = btoa(unescape(encodeURIComponent(JSON.stringify(state))));
+      zip.file("editor_state.json", compressed);
+      zip.generateAsync({ type: "blob" }).then(content => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(content);
+        a.download = "editor_state.zip";
+        a.click();
+      });
+    }
+
+    function importStateFromFile(file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const decompressed = decodeURIComponent(escape(atob(e.target.result)));
+          const state = JSON.parse(decompressed);
+          editor.setValue(state.code || '', -1);
+          isDark = (state.theme === "dark");
+          toggleTheme();
+          lineNumbersVisible = state.lineNumbers;
+          showLineNumbers();
+          runCode();
+        } catch (err) {
+          alert("Invalid or corrupted state file.");
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function toggleOrientation(btn) {
+      isVertical = !isVertical;
+      setOrientation(btn);
+    }
+
+    function setOrientation(btn = null) {
+      const container = document.getElementById("jkresizer");
+      const header = document.getElementById("resizeHeader");
+      container.style.flexDirection = isVertical ? "column" : "row";
+      header.style.cursor = isVertical ? "row-resize" : "col-resize";
+      header.innerText = isVertical ? "⇳" : "⇔";
+      if (btn) btn.innerText = isVertical ? "🔁" : "🔃";
+      editor.resize();
+    }
+
+    const header = document.getElementById("resizeHeader");
+    const output = document.getElementById("jkcodeoutput");
+    const input = document.getElementById("jkcodeinput");
+    const container = document.getElementById("jkresizer");
+    header.onmousedown = function(e) {
+      e.preventDefault();
+      document.onmousemove = function(e) {
+        e.preventDefault();
+        if (isVertical) {
+          const totalHeight = container.clientHeight;
+          let inputHeight = e.clientY - container.offsetTop;
+          let outputHeight = totalHeight - inputHeight - header.offsetHeight;
+          if (inputHeight < 100 || outputHeight < 100) return;
+          input.style.height = inputHeight + "px";
+          output.style.height = outputHeight + "px";
+          input.style.width = output.style.width = "100%";
+        } else {
+          const totalWidth = container.clientWidth;
+          let inputWidth = e.clientX - container.offsetLeft;
+          let outputWidth = totalWidth - inputWidth - header.offsetWidth;
+          if (inputWidth < 100 || outputWidth < 100) return;
+          input.style.width = inputWidth + "px";
+          output.style.width = outputWidth + "px";
+          input.style.height = output.style.height = "100%";
+        }
+        editor.resize();
+      };
+      document.onmouseup = function() {
+        document.onmousemove = null;
+        document.onmouseup = null;
+      };
+    };
+
+    window.addEventListener("load", () => {
+      const saved = localStorage.getItem("jk_saved_code");
+      if (saved) editor.setValue(saved, -1);
+      runCode();
+      setOrientation(); // Ensure horizontal layout at startup
+    });
+  </script>
+</body>
+</html>
